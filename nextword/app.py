@@ -51,7 +51,10 @@ class LevelScreen(Screen):
 
 
 class SublevelScreen(Screen):
-    BINDINGS = [Binding("q", "app.quit", "Quit")]
+    BINDINGS = [
+        Binding("q", "app.quit", "Quit"),
+        Binding("escape", "pop_screen", "Back"),
+    ]
 
     def __init__(self, level: str) -> None:
         super().__init__()
@@ -77,10 +80,9 @@ class WordListScreen(Screen):
     BINDINGS = [
         Binding("s", "save", "Save"),
         Binding("q", "app.quit", "Quit"),
-        Binding("escape", "app.quit", "Quit", show=False),
+        Binding("escape", "pop_screen", "Back", show=False),
         Binding("space", "toggle_item", "Toggle", show=False),
         Binding("enter", "toggle_item", "Toggle", show=False),
-        Binding("tab", "toggle_item", "Toggle", show=False),
     ]
 
     def __init__(self, words: list[dict]) -> None:
@@ -109,14 +111,14 @@ class WordListScreen(Screen):
         if not selected:
             self.notify("No words selected.", severity="warning")
             return
-        out = Path("data/export.csv")
+        out = Path(__file__).resolve().parent.parent / "data" / "export.csv"
         out.parent.mkdir(parents=True, exist_ok=True)
         with out.open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(["word"])
             for word in selected:
                 writer.writerow([word])
-        self.app.exit()
+        self.app.exit(message=f"Saved {len(selected)} words to {out}")
 
     def _refresh_title(self) -> None:
         count = sum(1 for row in self.query(WordRow) if row.checked)

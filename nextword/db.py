@@ -1,10 +1,12 @@
 import sqlite3
+from contextlib import closing
+from pathlib import Path
 
-DB_PATH = "data/words.db"
+DB_PATH = Path(__file__).resolve().parent.parent / "data" / "words.db"
 
 
-def get_words(level: str, sublevel: str, db_path: str = DB_PATH) -> list[dict]:
-    with sqlite3.connect(db_path) as conn:
+def get_words(level: str, sublevel: str, db_path: str | Path = DB_PATH) -> list[dict]:
+    with closing(sqlite3.connect(db_path)) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT word, translation FROM words WHERE level = ? AND sublevel = ? ORDER BY word",
