@@ -1,0 +1,19 @@
+[project]
+name = "nextword"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Arsenii Kuznetsov"}
+]
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "python-dotenv (>=1.2.2,<2.0.0)",
+    "requests (>=2.33.1,<3.0.0)",
+    "anthropic (>=0.100.0,<0.101.0)",
+    "mochi-api-client (>=0.1.4,<0.2.0)",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
