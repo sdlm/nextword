@@ -106,6 +106,9 @@ class WordListScreen(Screen):
 
     def action_save(self) -> None:
         selected = [row.word for row in self.query(WordRow) if row.checked]
+        if not selected:
+            self.notify("No words selected.", severity="warning")
+            return
         out = Path("data/export.csv")
         with out.open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
