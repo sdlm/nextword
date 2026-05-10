@@ -6,6 +6,8 @@ from textual.binding import Binding
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Label, ListItem, ListView, Static
 
+from nextword.db import get_words
+
 
 LEVELS = ["A2", "B1", "B2", "C1"]
 SUBLEVELS = ["beginner", "intermediate", "advance"]
@@ -48,7 +50,6 @@ class SublevelScreen(Screen):
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         sublevel = event.item.id.removeprefix("sub-")
-        from nextword.db import get_words
         words = get_words(self._level, sublevel)
         self.app.push_screen(WordListScreen(words))
 
