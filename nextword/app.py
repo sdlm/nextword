@@ -110,6 +110,7 @@ class WordListScreen(Screen):
             self.notify("No words selected.", severity="warning")
             return
         out = Path("data/export.csv")
+        out.parent.mkdir(parents=True, exist_ok=True)
         with out.open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(["word"])
