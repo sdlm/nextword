@@ -1,4 +1,9 @@
 from nextword.app import WordListApp
 
-if __name__ == "__main__":
+
+def main() -> None:
     WordListApp().run()
+
+
+if __name__ == "__main__":
+    main()
