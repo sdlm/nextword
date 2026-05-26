@@ -87,3 +87,17 @@ def test_collect_cards_maps_ids_to_words_and_reports_failures():
     cards, failed = collect_cards(responses, id_to_word)
     assert cards == [{"word": "extra", "fields": {"Word": "extra"}}]
     assert failed == ["fact"]
+
+
+from nextword.cards.pipeline import load_state, save_state
+
+
+def test_load_state_returns_none_when_missing(tmp_path):
+    assert load_state(tmp_path / "nope.json") is None
+
+
+def test_save_then_load_roundtrip(tmp_path):
+    path = tmp_path / "state" / "cards_batch.json"
+    state = {"batch_id": "msgbatch_1", "words": ["extra"], "status": "in_progress"}
+    save_state(path, state)
+    assert load_state(path) == state

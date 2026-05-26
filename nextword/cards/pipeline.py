@@ -77,3 +77,16 @@ def collect_cards(responses, id_to_word: dict[str, str]) -> tuple[list[dict], li
         else:
             failed.append(word)
     return cards, failed
+
+
+def load_state(path: str | Path) -> dict | None:
+    p = Path(path)
+    if not p.exists():
+        return None
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def save_state(path: str | Path, state: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
