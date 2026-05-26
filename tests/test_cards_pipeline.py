@@ -76,7 +76,7 @@ def test_collect_cards_maps_ids_to_words_and_reports_failures():
             custom_id="req-0",
             result=SimpleNamespace(
                 type="succeeded",
-                message=_tool_use_message({"Word": "extra"}),
+                message=_tool_use_message({"word": "extra"}),
             ),
         ),
         SimpleNamespace(
@@ -120,7 +120,7 @@ class FakeBatchesOrch:
         return SimpleNamespace(processing_status="ended")
 
     def results(self, batch_id):
-        block = SimpleNamespace(type="tool_use", name="card", input={"Word": "extra"})
+        block = SimpleNamespace(type="tool_use", name="card", input={"word": "extra"})
         return iter([
             SimpleNamespace(
                 custom_id="req-0",
@@ -140,7 +140,7 @@ class FakeClientOrch:
 
     def _create(self, **params):
         self.create_params = params
-        block = SimpleNamespace(type="tool_use", name="card", input={"Word": "extra"})
+        block = SimpleNamespace(type="tool_use", name="card", input={"word": "extra"})
         return SimpleNamespace(content=[block])
 
 
@@ -205,14 +205,14 @@ def test_collect_cards_defaults_missing_optional_field_to_empty_string():
             result=SimpleNamespace(
                 type="succeeded",
                 message=_tool_use_message({
-                    "Word": "extra",
-                    "Part of speech": "adjective",
-                    "Definition": "d",
-                    "Example": "e",
-                    "Translation": "t",
-                    "Collocations": "c",
-                    "Cloze": "z",
-                }),  # NOTE: no "Synonyms & Nuance"
+                    "word": "extra",
+                    "part_of_speech": "adjective",
+                    "definition": "d",
+                    "example": "e",
+                    "translation": "t",
+                    "collocations": "c",
+                    "cloze": "z",
+                }),  # NOTE: no "synonyms_nuance"
             ),
         ),
     ]

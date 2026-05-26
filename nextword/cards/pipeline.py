@@ -12,7 +12,7 @@ from nextword.cards.client import (
     submit_batch,
 )
 from nextword.cards.prompt import build_system_blocks, build_user_message
-from nextword.cards.schema import CARD_TOOL, FIELD_NAMES, MAX_TOKENS, MODEL
+from nextword.cards.schema import CARD_TOOL, FIELDS, MAX_TOKENS, MODEL
 
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 DEFAULT_CSV = _DATA_DIR / "export.csv"
@@ -80,15 +80,19 @@ def extract_fields(content: list) -> dict:
     raise ValueError("response has no tool_use block")
 
 
+def _to_card_fields(raw: dict) -> dict:
+    # Map the tool's snake_case keys to template.md display names; the optional
+    # synonyms field (and any other missing key) defaults to an empty string.
+    return {name: raw.get(key, "") for key, name in FIELDS}
+
+
 def collect_cards(responses, id_to_word: dict[str, str]) -> tuple[list[dict], list[str]]:
     cards: list[dict] = []
     failed: list[str] = []
     for response in responses:
         word = id_to_word.get(response.custom_id, response.custom_id)
         if response.result.type == "succeeded":
-            fields = extract_fields(response.result.message.content)
-            for name in FIELD_NAMES:
-                fields.setdefault(name, "")
+            fields = _to_card_fields(extract_fields(response.result.message.content))
             cards.append({"word": word, "fields": fields})
         else:
             failed.append(word)
@@ -153,9 +157,7 @@ def preview(word: str, *, client=None) -> dict:
     client = client or make_client()
     request = build_requests([word])[0]
     message = generate_one(client, request)
-    fields = extract_fields(message.content)
-    for name in FIELD_NAMES:
-        fields.setdefault(name, "")
+    fields = _to_card_fields(extract_fields(message.content))
     card = {"word": word, "fields": fields}
     print(json.dumps(card, ensure_ascii=False, indent=2))
     return card
