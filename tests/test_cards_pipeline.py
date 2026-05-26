@@ -101,3 +101,90 @@ def test_save_then_load_roundtrip(tmp_path):
     state = {"batch_id": "msgbatch_1", "words": ["extra"], "status": "in_progress"}
     save_state(path, state)
     assert load_state(path) == state
+
+
+from nextword.cards.pipeline import generate, preview
+
+
+class FakeBatchesOrch:
+    def __init__(self):
+        self.created = None
+
+    def create(self, requests):
+        self.created = requests
+        return SimpleNamespace(id="msgbatch_xyz")
+
+    def retrieve(self, batch_id):
+        return SimpleNamespace(processing_status="ended")
+
+    def results(self, batch_id):
+        block = SimpleNamespace(type="tool_use", name="card", input={"Word": "extra"})
+        return iter([
+            SimpleNamespace(
+                custom_id="req-0",
+                result=SimpleNamespace(type="succeeded",
+                                       message=SimpleNamespace(content=[block])),
+            )
+        ])
+
+
+class FakeClientOrch:
+    def __init__(self):
+        self.messages = SimpleNamespace(
+            batches=FakeBatchesOrch(),
+            create=self._create,
+        )
+        self.create_params = None
+
+    def _create(self, **params):
+        self.create_params = params
+        block = SimpleNamespace(type="tool_use", name="card", input={"Word": "extra"})
+        return SimpleNamespace(content=[block])
+
+
+def test_generate_fresh_submit_writes_cards_and_state(tmp_path):
+    csv_file = tmp_path / "export.csv"
+    csv_file.write_text("word\nextra\n", encoding="utf-8")
+    out = tmp_path / "cards.json"
+    state = tmp_path / "cards_batch.json"
+    client = FakeClientOrch()
+
+    cards, failed = generate(
+        csv_path=csv_file, out_path=out, state_path=state,
+        client=client, poll_interval=0, sleep=lambda _: None,
+    )
+
+    assert cards == [{"word": "extra", "fields": {"Word": "extra"}}]
+    assert failed == []
+    assert json.loads(out.read_text(encoding="utf-8")) == cards
+    saved = json.loads(state.read_text(encoding="utf-8"))
+    assert saved["batch_id"] == "msgbatch_xyz"
+    assert saved["status"] == "collected"
+
+
+def test_generate_resumes_in_flight_batch_without_resubmitting(tmp_path):
+    csv_file = tmp_path / "export.csv"
+    csv_file.write_text("word\nextra\n", encoding="utf-8")
+    out = tmp_path / "cards.json"
+    state = tmp_path / "cards_batch.json"
+    state.write_text(json.dumps({
+        "batch_id": "msgbatch_existing",
+        "words": ["extra"],
+        "status": "in_progress",
+    }), encoding="utf-8")
+    client = FakeClientOrch()
+
+    cards, failed = generate(
+        csv_path=csv_file, out_path=out, state_path=state,
+        client=client, poll_interval=0, sleep=lambda _: None,
+    )
+
+    assert client.messages.batches.created is None  # did NOT submit a new batch
+    assert cards == [{"word": "extra", "fields": {"Word": "extra"}}]
+
+
+def test_preview_returns_single_card(capsys, tmp_path):
+    client = FakeClientOrch()
+    card = preview("extra", client=client)
+    assert card == {"word": "extra", "fields": {"Word": "extra"}}
+    assert "extra" in capsys.readouterr().out
