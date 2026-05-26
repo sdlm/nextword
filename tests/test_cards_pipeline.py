@@ -85,7 +85,9 @@ def test_collect_cards_maps_ids_to_words_and_reports_failures():
         ),
     ]
     cards, failed = collect_cards(responses, id_to_word)
-    assert cards == [{"word": "extra", "fields": {"Word": "extra"}}]
+    assert len(cards) == 1
+    assert cards[0]["word"] == "extra"
+    assert cards[0]["fields"]["Word"] == "extra"
     assert failed == ["fact"]
 
 
@@ -154,7 +156,9 @@ def test_generate_fresh_submit_writes_cards_and_state(tmp_path):
         client=client, poll_interval=0, sleep=lambda _: None,
     )
 
-    assert cards == [{"word": "extra", "fields": {"Word": "extra"}}]
+    assert len(cards) == 1
+    assert cards[0]["word"] == "extra"
+    assert cards[0]["fields"]["Word"] == "extra"
     assert failed == []
     assert json.loads(out.read_text(encoding="utf-8")) == cards
     saved = json.loads(state.read_text(encoding="utf-8"))
@@ -180,11 +184,40 @@ def test_generate_resumes_in_flight_batch_without_resubmitting(tmp_path):
     )
 
     assert client.messages.batches.created is None  # did NOT submit a new batch
-    assert cards == [{"word": "extra", "fields": {"Word": "extra"}}]
+    assert len(cards) == 1
+    assert cards[0]["word"] == "extra"
+    assert cards[0]["fields"]["Word"] == "extra"
 
 
 def test_preview_returns_single_card(capsys, tmp_path):
     client = FakeClientOrch()
     card = preview("extra", client=client)
-    assert card == {"word": "extra", "fields": {"Word": "extra"}}
+    assert card["word"] == "extra"
+    assert card["fields"]["Word"] == "extra"
     assert "extra" in capsys.readouterr().out
+
+
+def test_collect_cards_defaults_missing_optional_field_to_empty_string():
+    id_to_word = {"req-0": "extra"}
+    responses = [
+        SimpleNamespace(
+            custom_id="req-0",
+            result=SimpleNamespace(
+                type="succeeded",
+                message=_tool_use_message({
+                    "Word": "extra",
+                    "Part of speech": "adjective",
+                    "Definition": "d",
+                    "Example": "e",
+                    "Translation": "t",
+                    "Collocations": "c",
+                    "Cloze": "z",
+                }),  # NOTE: no "Synonyms & Nuance"
+            ),
+        ),
+    ]
+    cards, failed = collect_cards(responses, id_to_word)
+    assert cards[0]["fields"]["Synonyms & Nuance"] == ""
+    # all 8 template field names present
+    from nextword.cards.schema import FIELD_NAMES
+    assert set(cards[0]["fields"]) >= set(FIELD_NAMES)
