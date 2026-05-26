@@ -1,6 +1,10 @@
 MODEL = "claude-sonnet-4-6"
 MAX_TOKENS = 2048
 
+# Max concurrent requests for the default parallel path (ThreadPoolExecutor),
+# kept modest to stay under Anthropic rate limits.
+CONCURRENCY = 5
+
 PART_OF_SPEECH = [
     "verb",
     "noun",

@@ -140,7 +140,8 @@ class FakeClientOrch:
 
     def _create(self, **params):
         self.create_params = params
-        block = SimpleNamespace(type="tool_use", name="card", input={"word": "extra"})
+        word = params["messages"][0]["content"].split("Word:", 1)[1].strip()
+        block = SimpleNamespace(type="tool_use", name="card", input={"word": word})
         return SimpleNamespace(content=[block])
 
 
@@ -153,7 +154,7 @@ def test_generate_fresh_submit_writes_cards_and_state(tmp_path):
 
     cards, failed = generate(
         csv_path=csv_file, out_path=out, state_path=state,
-        client=client, poll_interval=0, sleep=lambda _: None,
+        client=client, use_batch=True, poll_interval=0, sleep=lambda _: None,
     )
 
     assert len(cards) == 1
@@ -180,7 +181,7 @@ def test_generate_resumes_in_flight_batch_without_resubmitting(tmp_path):
 
     cards, failed = generate(
         csv_path=csv_file, out_path=out, state_path=state,
-        client=client, poll_interval=0, sleep=lambda _: None,
+        client=client, use_batch=True, poll_interval=0, sleep=lambda _: None,
     )
 
     assert client.messages.batches.created is None  # did NOT submit a new batch
@@ -221,3 +222,52 @@ def test_collect_cards_defaults_missing_optional_field_to_empty_string():
     # all 8 template field names present
     from nextword.cards.schema import FIELD_NAMES
     assert set(cards[0]["fields"]) >= set(FIELD_NAMES)
+
+
+def test_generate_parallel_writes_cards_in_order(tmp_path):
+    csv_file = tmp_path / "export.csv"
+    csv_file.write_text("word\nextra\nfact\nfactor\n", encoding="utf-8")
+    out = tmp_path / "cards.json"
+    state = tmp_path / "cards_batch.json"
+    client = FakeClientOrch()
+
+    cards, failed = generate(
+        csv_path=csv_file, out_path=out, state_path=state,
+        client=client, max_workers=3,
+    )
+
+    assert failed == []
+    assert [c["word"] for c in cards] == ["extra", "fact", "factor"]
+    assert [c["fields"]["Word"] for c in cards] == ["extra", "fact", "factor"]
+    assert json.loads(out.read_text(encoding="utf-8")) == cards
+    assert not state.exists()  # parallel path does not use a state file
+    assert client.messages.batches.created is None  # no batch submitted
+
+
+class _FlakyClient:
+    def __init__(self, fail_words):
+        self.fail_words = set(fail_words)
+        self.messages = SimpleNamespace(create=self._create)
+
+    def _create(self, **params):
+        word = params["messages"][0]["content"].split("Word:", 1)[1].strip()
+        if word in self.fail_words:
+            raise RuntimeError(f"boom for {word}")
+        block = SimpleNamespace(type="tool_use", name="card", input={"word": word})
+        return SimpleNamespace(content=[block])
+
+
+def test_generate_parallel_reports_failed_words(tmp_path):
+    csv_file = tmp_path / "export.csv"
+    csv_file.write_text("word\nextra\nfact\nfactor\n", encoding="utf-8")
+    out = tmp_path / "cards.json"
+    state = tmp_path / "cards_batch.json"
+    client = _FlakyClient(fail_words={"fact"})
+
+    cards, failed = generate(
+        csv_path=csv_file, out_path=out, state_path=state,
+        client=client, max_workers=3,
+    )
+
+    assert failed == ["fact"]
+    assert [c["word"] for c in cards] == ["extra", "factor"]

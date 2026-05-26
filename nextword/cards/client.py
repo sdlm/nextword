@@ -1,8 +1,11 @@
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
+
+from nextword.cards.schema import CONCURRENCY
 
 
 def make_client() -> Anthropic:
@@ -31,3 +34,20 @@ def iter_results(client, batch_id: str):
 
 def generate_one(client, request: dict):
     return client.messages.create(**request["params"])
+
+
+def generate_many(client, requests: list[dict], *, max_workers: int = CONCURRENCY):
+    # Run all requests in parallel; return ("ok", message) or ("error", exc)
+    # per request, in the same order as the input list.
+    results: list = [None] * len(requests)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(generate_one, client, req): i
+            for i, req in enumerate(requests)
+        }
+        for future, i in futures.items():
+            try:
+                results[i] = ("ok", future.result())
+            except Exception as exc:  # noqa: BLE001 - report per-request, keep others
+                results[i] = ("error", exc)
+    return results

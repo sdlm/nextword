@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from nextword.cards.client import (
+    generate_many,
     generate_one,
     iter_results,
     make_client,
@@ -12,7 +13,7 @@ from nextword.cards.client import (
     submit_batch,
 )
 from nextword.cards.prompt import build_system_blocks, build_user_message
-from nextword.cards.schema import CARD_TOOL, FIELDS, MAX_TOKENS, MODEL
+from nextword.cards.schema import CARD_TOOL, CONCURRENCY, FIELDS, MAX_TOKENS, MODEL
 
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 DEFAULT_CSV = _DATA_DIR / "export.csv"
@@ -86,14 +87,17 @@ def _to_card_fields(raw: dict) -> dict:
     return {name: raw.get(key, "") for key, name in FIELDS}
 
 
+def _card(word: str, message) -> dict:
+    return {"word": word, "fields": _to_card_fields(extract_fields(message.content))}
+
+
 def collect_cards(responses, id_to_word: dict[str, str]) -> tuple[list[dict], list[str]]:
     cards: list[dict] = []
     failed: list[str] = []
     for response in responses:
         word = id_to_word.get(response.custom_id, response.custom_id)
         if response.result.type == "succeeded":
-            fields = _to_card_fields(extract_fields(response.result.message.content))
-            cards.append({"word": word, "fields": fields})
+            cards.append(_card(word, response.result.message))
         else:
             failed.append(word)
     return cards, failed
@@ -118,12 +122,42 @@ def generate(
     state_path: str | Path = DEFAULT_STATE,
     *,
     client=None,
+    use_batch: bool = False,
+    max_workers: int = CONCURRENCY,
     poll_interval: int = 30,
     sleep=time.sleep,
 ) -> tuple[list[dict], list[str]]:
     client = client or make_client()
-    state = load_state(state_path)
+    if use_batch:
+        cards, failed = _generate_batch(client, csv_path, state_path, poll_interval, sleep)
+    else:
+        cards, failed = _generate_parallel(client, csv_path, max_workers)
 
+    write_cards(cards, out_path)
+    print(f"Wrote {len(cards)} cards to {out_path}")
+    if failed:
+        print(f"Failed ({len(failed)}): {', '.join(failed)}")
+    return cards, failed
+
+
+def _generate_parallel(client, csv_path, max_workers) -> tuple[list[dict], list[str]]:
+    words = read_words(csv_path)
+    if not words:
+        raise RuntimeError(f"No words found in {csv_path}")
+    print(f"Generating {len(words)} cards in parallel (max {max_workers} at a time)")
+    results = generate_many(client, build_requests(words), max_workers=max_workers)
+    cards: list[dict] = []
+    failed: list[str] = []
+    for word, (status, payload) in zip(words, results):
+        if status == "ok":
+            cards.append(_card(word, payload))
+        else:
+            failed.append(word)
+    return cards, failed
+
+
+def _generate_batch(client, csv_path, state_path, poll_interval, sleep) -> tuple[list[dict], list[str]]:
+    state = load_state(state_path)
     if state and state.get("status") == "in_progress":
         batch_id = state["batch_id"]
         words = state["words"]
@@ -144,12 +178,7 @@ def generate(
     poll_until_done(client, batch_id, interval=poll_interval, sleep=sleep)
     id_to_word = {f"req-{i}": w for i, w in enumerate(words)}
     cards, failed = collect_cards(iter_results(client, batch_id), id_to_word)
-    write_cards(cards, out_path)
     save_state(state_path, {**load_state(state_path), "status": "collected"})
-
-    print(f"Wrote {len(cards)} cards to {out_path}")
-    if failed:
-        print(f"Failed ({len(failed)}): {', '.join(failed)}")
     return cards, failed
 
 

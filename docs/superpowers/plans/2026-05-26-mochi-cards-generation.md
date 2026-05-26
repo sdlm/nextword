@@ -1,5 +1,13 @@
 # Mochi Card Generation — Implementation Plan
 
+> **Revision 2026-05-26 — pivot to parallel-default, `--batch` opt-in.**
+> The original plan below (Tasks 1–10) was implemented as-is (commits `01989af`…`baa0ae8`) and used the Message Batches API as the only execution path. After live testing, the batch turnaround was too slow, so execution pivoted to **parallel synchronous requests (`ThreadPoolExecutor`) by default**, keeping the batch path as an opt-in `--batch` flag. Changes layered on top of the original tasks:
+> - `schema.py`: add `CONCURRENCY = 5` constant.
+> - `client.py`: add `generate_many(client, requests, *, max_workers=CONCURRENCY)` (ThreadPoolExecutor over `generate_one`, order-preserving, captures per-request exceptions). Batch functions (`submit_batch`/`poll_until_done`/`iter_results`) retained for `--batch`.
+> - `pipeline.py`: `generate(...)` gains `use_batch: bool = False`; default path runs `generate_many` and writes `cards.json` (no state file); `--batch` path keeps the original submit→poll→collect→resume flow.
+> - `cli.py`: `cards generate` gains a `--batch` flag; `preview` unchanged.
+> - No new dependencies (`concurrent.futures` is stdlib). See the spec for the authoritative current design; Tasks 7–8 below describe the original batch-only implementation and are kept as a historical record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a pipeline that reads English words from `data/export.csv`, generates 8 card fields per word via the Anthropic Message Batches API, and writes `data/cards.json`.

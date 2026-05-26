@@ -1,5 +1,11 @@
 from types import SimpleNamespace
-from nextword.cards.client import submit_batch, poll_until_done, iter_results, generate_one
+from nextword.cards.client import (
+    submit_batch,
+    poll_until_done,
+    iter_results,
+    generate_one,
+    generate_many,
+)
 
 
 class FakeBatches:
@@ -62,3 +68,26 @@ def test_generate_one_calls_messages_create_with_params():
     msg = generate_one(client, request)
     assert msg.content == ["msg"]
     assert client.messages.created_with == {"model": "m", "max_tokens": 10}
+
+
+def test_generate_many_preserves_order_and_captures_errors():
+    class _Messages:
+        def create(self, **params):
+            content = params["messages"][0]["content"]
+            if content == "boom":
+                raise RuntimeError("fail")
+            return SimpleNamespace(content=content)
+
+    client = SimpleNamespace(messages=_Messages())
+    requests = [
+        {"custom_id": "req-0", "params": {"messages": [{"role": "user", "content": "a"}]}},
+        {"custom_id": "req-1", "params": {"messages": [{"role": "user", "content": "boom"}]}},
+        {"custom_id": "req-2", "params": {"messages": [{"role": "user", "content": "c"}]}},
+    ]
+
+    results = generate_many(client, requests, max_workers=3)
+
+    assert [status for status, _ in results] == ["ok", "error", "ok"]
+    assert results[0][1].content == "a"
+    assert isinstance(results[1][1], RuntimeError)
+    assert results[2][1].content == "c"

@@ -8,7 +8,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     cards = sub.add_parser("cards", help="Mochi card generation")
     cards_sub = cards.add_subparsers(dest="cards_command")
-    cards_sub.add_parser("generate", help="Generate cards.json via the Batches API")
+    generate = cards_sub.add_parser("generate", help="Generate cards.json (parallel by default)")
+    generate.add_argument(
+        "--batch",
+        action="store_true",
+        help="Use the slower, cheaper Message Batches API instead of parallel requests",
+    )
     preview = cards_sub.add_parser("preview", help="Generate one card synchronously")
     preview.add_argument("word", help="The English word to preview")
 
@@ -22,7 +27,7 @@ def main() -> None:
         from nextword.cards import pipeline
 
         if args.cards_command == "generate":
-            pipeline.generate()
+            pipeline.generate(use_batch=args.batch)
         elif args.cards_command == "preview":
             pipeline.preview(args.word)
         else:
