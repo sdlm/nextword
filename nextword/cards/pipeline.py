@@ -57,3 +57,23 @@ def build_requests(
         }
         for i, word in enumerate(words)
     ]
+
+
+def extract_fields(content: list) -> dict:
+    for block in content:
+        if getattr(block, "type", None) == "tool_use":
+            return dict(block.input)
+    raise ValueError("response has no tool_use block")
+
+
+def collect_cards(responses, id_to_word: dict[str, str]) -> tuple[list[dict], list[str]]:
+    cards: list[dict] = []
+    failed: list[str] = []
+    for response in responses:
+        word = id_to_word.get(response.custom_id, response.custom_id)
+        if response.result.type == "succeeded":
+            fields = extract_fields(response.result.message.content)
+            cards.append({"word": word, "fields": fields})
+        else:
+            failed.append(word)
+    return cards, failed
