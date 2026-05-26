@@ -22,3 +22,24 @@ def test_write_cards_writes_utf8_json(tmp_path):
     assert loaded == cards
     # Russian must not be escaped
     assert "дополнительный" in out.read_text(encoding="utf-8")
+
+
+from nextword.cards.pipeline import build_requests
+from nextword.cards.schema import CARD_TOOL, MODEL
+
+
+def test_build_requests_one_per_word_with_indexed_ids():
+    reqs = build_requests(["extra", "give up"])
+    assert [r["custom_id"] for r in reqs] == ["req-0", "req-1"]
+
+
+def test_build_request_params_shape():
+    req = build_requests(["extra"])[0]
+    params = req["params"]
+    assert params["model"] == MODEL
+    assert params["tools"] == [CARD_TOOL]
+    assert params["tool_choice"] == {"type": "tool", "name": "card"}
+    assert params["messages"][0]["role"] == "user"
+    assert "extra" in params["messages"][0]["content"]
+    # system prompt is the cached block list
+    assert params["system"][0]["cache_control"] == {"type": "ephemeral"}
