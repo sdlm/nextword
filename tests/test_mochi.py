@@ -68,3 +68,31 @@ def test_build_fields_payload_structure():
         "name":     {"id": "name",     "value": "undertake"},
         "C8cx6HFb": {"id": "C8cx6HFb", "value": "to take on a task"},
     }
+
+
+from unittest.mock import MagicMock, call
+from requests.exceptions import HTTPError
+from nextword.mochi.upload import _with_retry
+
+
+def test_retry_succeeds_on_first_try():
+    fn = MagicMock(return_value="ok")
+    assert _with_retry(fn) == "ok"
+    fn.assert_called_once()
+
+
+def test_retry_succeeds_after_two_failures():
+    fn = MagicMock(side_effect=[HTTPError(), HTTPError(), "ok"])
+    sleep = MagicMock()
+    assert _with_retry(fn, sleep=sleep) == "ok"
+    assert fn.call_count == 3
+    assert sleep.call_args_list == [call(1), call(2)]
+
+
+def test_retry_raises_after_all_attempts_fail():
+    fn = MagicMock(side_effect=HTTPError("boom"))
+    sleep = MagicMock()
+    with pytest.raises(HTTPError):
+        _with_retry(fn, sleep=sleep)
+    assert fn.call_count == 3
+    assert sleep.call_count == 2

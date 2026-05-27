@@ -1,11 +1,32 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
+from typing import Any, Callable
+
+from requests.exceptions import HTTPError
 
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 DEFAULT_CARDS = _DATA_DIR / "cards.json"
 DEFAULT_STATE = _DATA_DIR / "mochi_state.json"
+
+
+def _with_retry(fn: Callable, *, attempts: int = 3, sleep: Callable[[float], None] = time.sleep) -> Any:
+    """Call fn(). On HTTPError retry up to `attempts` times with 1s/2s/4s backoff.
+
+    Raises the last HTTPError if all attempts fail.
+    Backoff delay before retry i is 2 ** (i-1): 1s, 2s, 4s, ...
+    """
+    last_error: HTTPError
+    for i in range(attempts):
+        try:
+            return fn()
+        except HTTPError as exc:
+            last_error = exc
+            if i < attempts - 1:
+                sleep(2 ** i)
+    raise last_error
 
 
 def get_field_id_map(template: dict) -> dict[str, str]:
