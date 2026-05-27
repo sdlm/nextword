@@ -105,9 +105,10 @@ def upload(
     for card in cards:
         word: str = card["fields"]["Word"]
         fields_payload = build_fields_payload(card["fields"], field_id_map)
+        is_update = word in state
 
         try:
-            if word in state:
+            if is_update:
                 card_id = state[word]
                 _with_retry(
                     lambda cid=card_id: client.cards.update_card(
@@ -140,8 +141,9 @@ def upload(
                 new_count += 1
                 print(f"  created {word}")
         except HTTPError:
-            state.pop(word, None)
-            save_state(state_path, state)
+            if not is_update:
+                state.pop(word, None)
+                save_state(state_path, state)
             failed_words.append(word)
             print(f"  FAILED {word}")
 

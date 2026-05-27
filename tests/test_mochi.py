@@ -223,3 +223,25 @@ def test_upload_collects_failures_and_continues(tmp_path):
 
     assert "extra" in failed
     assert new == 1
+
+
+def test_upload_update_failure_preserves_card_id(tmp_path):
+    """Failed update_card must not delete the existing card_id from state."""
+    from requests.exceptions import HTTPError
+    cards_file = tmp_path / "cards.json"
+    cards_file.write_text(json.dumps([CARDS_FIXTURE[0]]), encoding="utf-8")
+    state_path = tmp_path / "state.json"
+    state_path.write_text(json.dumps({"extra": "card_001"}), encoding="utf-8")
+    client = _make_mock_client(FULL_TEMPLATE_FIXTURE)
+    client.cards.update_card = MagicMock(side_effect=HTTPError())
+
+    new, updated, failed = upload(
+        cards_file, state_path,
+        client=client, deck_id="deck1", template_id="tmpl1", sleep=lambda s: None,
+    )
+
+    assert "extra" in failed
+    # card_id must still be in state after failed update
+    import json as _json
+    saved = _json.loads(state_path.read_text())
+    assert saved.get("extra") == "card_001"
