@@ -13,10 +13,9 @@ DEFAULT_STATE = _DATA_DIR / "mochi_state.json"
 
 
 def _with_retry(fn: Callable, *, attempts: int = 3, sleep: Callable[[float], None] = time.sleep) -> Any:
-    """Call fn(). On HTTPError retry up to `attempts` times with 1s/2s/4s backoff.
+    """Call fn(). On HTTPError retry with exponential backoff (2**i seconds between attempts).
 
     Raises the last HTTPError if all attempts fail.
-    Backoff delay before retry i is 2 ** (i-1): 1s, 2s, 4s, ...
     """
     last_error: HTTPError
     for i in range(attempts):
