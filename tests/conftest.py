@@ -10,7 +10,7 @@ def _no_dotenv_in_mochi_tests(request):
     Without this fixture, load_dotenv() would re-populate vars from the real
     .env file after monkeypatch.delenv(), making the tests non-hermetic.
     """
-    if "test_mochi" in request.module.__name__:
+    if request.module.__name__ == "tests.test_mochi":
         with patch("nextword.mochi.client.load_dotenv"):
             yield
     else:
