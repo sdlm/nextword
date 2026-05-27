@@ -17,6 +17,12 @@ def build_parser() -> argparse.ArgumentParser:
     preview = cards_sub.add_parser("preview", help="Generate one card synchronously")
     preview.add_argument("word", help="The English word to preview")
 
+    mochi = sub.add_parser("mochi", help="Mochi card upload")
+    mochi_sub = mochi.add_subparsers(dest="mochi_command")
+    mochi_sub.add_parser("upload", help="Upload cards.json to Mochi")
+    mochi_preview = mochi_sub.add_parser("preview", help="Dry-run: print payload for one word")
+    mochi_preview.add_argument("word", help="Word to preview")
+
     return parser
 
 
@@ -32,6 +38,17 @@ def main() -> None:
             pipeline.preview(args.word)
         else:
             build_parser().parse_args(["cards", "--help"])
+        return
+
+    if args.command == "mochi":
+        from nextword.mochi import upload as mochi_upload
+
+        if args.mochi_command == "upload":
+            mochi_upload.upload()
+        elif args.mochi_command == "preview":
+            mochi_upload.preview(args.word)
+        else:
+            build_parser().parse_args(["mochi", "--help"])
         return
 
     from nextword.app import WordListApp

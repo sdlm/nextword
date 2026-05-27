@@ -25,3 +25,16 @@ def test_cards_preview_parses_word():
     assert args.cards_command == "preview"
     assert args.word == "undertake"
     assert not hasattr(args, "batch")
+
+
+def test_mochi_upload_parses():
+    args = build_parser().parse_args(["mochi", "upload"])
+    assert args.command == "mochi"
+    assert args.mochi_command == "upload"
+
+
+def test_mochi_preview_parses_word():
+    args = build_parser().parse_args(["mochi", "preview", "undertake"])
+    assert args.command == "mochi"
+    assert args.mochi_command == "preview"
+    assert args.word == "undertake"
