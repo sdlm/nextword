@@ -245,3 +245,31 @@ def test_upload_update_failure_preserves_card_id(tmp_path):
     import json as _json
     saved = _json.loads(state_path.read_text())
     assert saved.get("extra") == "card_001"
+
+
+from nextword.mochi.upload import preview
+
+
+def test_preview_prints_word_and_fields(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("MOCHI_DECK_ID", "deck123")
+    monkeypatch.setenv("MOCHI_TEMPLATE_ID", "tmpl456")
+    cards_file = tmp_path / "cards.json"
+    cards_file.write_text(json.dumps([CARDS_FIXTURE[0]]), encoding="utf-8")
+
+    preview("extra", cards_path=cards_file)
+
+    out = capsys.readouterr().out
+    assert "extra" in out
+    assert "deck123" in out
+    assert "tmpl456" in out
+    assert "adjective" in out
+
+
+def test_preview_raises_if_word_not_found(tmp_path, monkeypatch):
+    monkeypatch.setenv("MOCHI_DECK_ID", "d")
+    monkeypatch.setenv("MOCHI_TEMPLATE_ID", "t")
+    cards_file = tmp_path / "cards.json"
+    cards_file.write_text(json.dumps([CARDS_FIXTURE[0]]), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="unknown"):
+        preview("unknown", cards_path=cards_file)

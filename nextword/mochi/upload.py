@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any, Callable
 
+from dotenv import load_dotenv
 from requests.exceptions import HTTPError
 
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
@@ -152,3 +154,31 @@ def upload(
         f"({new_count} new, {updated_count} updated, {len(failed_words)} failed)"
     )
     return new_count, updated_count, failed_words
+
+
+def preview(word: str, cards_path: Path = DEFAULT_CARDS) -> None:
+    """Print what would be sent to Mochi for the given word. No API calls.
+
+    Reads MOCHI_DECK_ID and MOCHI_TEMPLATE_ID from env (via load_dotenv).
+    Prints field names and values — does NOT resolve field IDs (no API needed).
+    Raises RuntimeError if word not found in cards_path.
+    """
+    load_dotenv()
+    deck_id = os.environ.get("MOCHI_DECK_ID", "")
+    template_id = os.environ.get("MOCHI_TEMPLATE_ID", "")
+
+    cards: list[dict] = json.loads(cards_path.read_text(encoding="utf-8"))
+    matched = next(
+        (c for c in cards if c["fields"].get("Word") == word),
+        None,
+    )
+    if matched is None:
+        raise RuntimeError(f"Word '{word}' not found in {cards_path}")
+
+    print(f"word:        {word}")
+    print(f"deck_id:     {deck_id}")
+    print(f"template_id: {template_id}")
+    print()
+    print("fields:")
+    for name, value in matched["fields"].items():
+        print(f"  {name + ':':<20} {value}")
