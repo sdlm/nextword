@@ -66,3 +66,87 @@ def build_fields_payload(
         for name, value in card_fields.items()
         if name in field_id_map
     }
+
+
+def upload(
+    cards_path: Path = DEFAULT_CARDS,
+    state_path: Path = DEFAULT_STATE,
+    *,
+    client: Any = None,
+    deck_id: str | None = None,
+    template_id: str | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> tuple[int, int, list[str]]:
+    """Upload all cards from cards_path to Mochi.
+
+    - New word (not in state): create_card(content, deck_id, template_id=..., fields=...)
+    - Existing word (in state): update_card(card_id, content=..., fields=...)
+      NOTE: update_card receives ONLY content and fields.
+    - State written to disk after EACH successful card (incremental).
+    - Failed words (HTTPError after all retries) collected and returned.
+
+    Returns: (new_count, updated_count, failed_words)
+    """
+    if client is None:
+        from nextword.mochi.client import make_client
+
+        client, deck_id, template_id = make_client()
+
+    cards: list[dict] = json.loads(cards_path.read_text(encoding="utf-8"))
+    state: dict[str, str] = load_state(state_path)
+
+    template = client.templates.get_template(template_id)
+    field_id_map = get_field_id_map(template)
+
+    new_count = 0
+    updated_count = 0
+    failed_words: list[str] = []
+
+    for card in cards:
+        word: str = card["fields"]["Word"]
+        fields_payload = build_fields_payload(card["fields"], field_id_map)
+
+        try:
+            if word in state:
+                card_id = state[word]
+                _with_retry(
+                    lambda cid=card_id: client.cards.update_card(
+                        cid,
+                        content=word,
+                        fields=fields_payload,
+                    ),
+                    sleep=sleep,
+                )
+                updated_count += 1
+                print(f"  updated {word}")
+                save_state(state_path, state)
+            else:
+                # Pre-save with sentinel so state file exists before the API call.
+                # This provides crash-safety: on restart the word is in state and
+                # will be treated as an update (idempotent).
+                state[word] = ""
+                save_state(state_path, state)
+                result = _with_retry(
+                    lambda: client.cards.create_card(
+                        word,
+                        deck_id,
+                        template_id=template_id,
+                        fields=fields_payload,
+                    ),
+                    sleep=sleep,
+                )
+                state[word] = result["id"]
+                save_state(state_path, state)
+                new_count += 1
+                print(f"  created {word}")
+        except HTTPError:
+            state.pop(word, None)
+            save_state(state_path, state)
+            failed_words.append(word)
+            print(f"  FAILED {word}")
+
+    print(
+        f"Uploaded {new_count + updated_count} cards "
+        f"({new_count} new, {updated_count} updated, {len(failed_words)} failed)"
+    )
+    return new_count, updated_count, failed_words
