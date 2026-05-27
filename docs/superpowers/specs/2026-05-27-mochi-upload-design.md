@@ -13,9 +13,9 @@ Upload generated flashcards from `data/cards.json` to a Mochi deck using the Moc
 Three env vars in `.env` (alongside existing `MOCHI_API_KEY`):
 
 ```
-MOCHI_API_KEY=...       # already present
-MOCHI_DECK_ID=...       # user copies from Mochi app
-MOCHI_TEMPLATE_ID=...   # user copies from Mochi app
+MOCHI_API_KEY=...                  # already present
+MOCHI_DECK_ID=...                  # user copies from Mochi app
+MOCHI_TEMPLATE_ID=Cmf4JjAG        # "Custom template" — confirmed via API
 ```
 
 Missing vars raise `RuntimeError` with a clear message at startup.
@@ -46,11 +46,30 @@ data/mochi_state.json   # { "word": "mochi_card_id", ... }
 ### `nextword mochi upload`
 
 1. Read `MOCHI_API_KEY`, `MOCHI_DECK_ID`, `MOCHI_TEMPLATE_ID` from `.env` — raise on missing.
-2. Call `mochi.templates.get_template(template_id)` → extract field name→ID mapping:
-   ```python
-   # e.g. {"Word": "abc1", "Definition": "abc2", ...}
+2. Call `mochi.templates.get_template(template_id)` → extract field name→ID mapping.
+
+   Real response structure (confirmed via API):
+   ```json
+   {
+     "fields": {
+       "name":       {"id": "name",       "name": "Word"},
+       "39H26Wpc":   {"id": "39H26Wpc",   "name": "Part of speech"},
+       "C8cx6HFb":   {"id": "C8cx6HFb",   "name": "Definition"},
+       "fYg9Kx07":   {"id": "fYg9Kx07",   "name": "Example"},
+       "yeAAPAUQ":   {"id": "yeAAPAUQ",   "name": "Translation"},
+       "igIW8zAx":   {"id": "igIW8zAx",   "name": "Collocations"},
+       "THTJKPzM":   {"id": "THTJKPzM",   "name": "Synonyms & Nuance"},
+       "9sbCiG4l":   {"id": "9sbCiG4l",   "name": "Cloze"}
+     }
+   }
    ```
+
+   Build mapping: `{field["name"]: field_id for field_id, field in template["fields"].items()}`
+
+   Note: the "Word" field has the special built-in ID `"name"` — same as the standard Mochi card name field.
+
    Cached in memory for the duration of the run.
+
 3. Load `data/cards.json` and `data/mochi_state.json` (empty dict if missing).
 4. For each card in `cards.json`:
    - `content = card["fields"]["Word"]`
@@ -59,13 +78,14 @@ data/mochi_state.json   # { "word": "mochi_card_id", ... }
      {fid: {"id": fid, "value": card["fields"][fname]}
       for fname, fid in field_id_map.items()}
      ```
-   - If `word` in state → `update_card(card_id, content=..., fields=...)`
-   - Else → `create_card(content, deck_id, template_id=..., fields=...)`
+   - If `word` in state → `update_card(card_id, content=content, fields=fields_payload)`
+     — pass **only** `content` and `fields`; do NOT pass `template_id` or `deck_id`
+     (the client's `update_card` does not convert `_`→`-` in kwargs, unlike `create_card`)
+   - Else → `create_card(content, deck_id, template_id=template_id, fields=fields_payload)`
    - Both calls wrapped with **exponential backoff retry**: 3 attempts, delays 1s / 2s / 4s on `HTTPError`.
-   - On success: write `word → card_id` into state dict.
+   - On success: **immediately** persist updated `mochi_state.json` to disk (incremental write — prevents duplicates if the run is interrupted mid-batch).
    - On final failure after retries: log word as failed, continue.
-5. Write updated `data/mochi_state.json`.
-6. Print summary: `Uploaded N cards (X new, Y updated, Z failed)`.
+5. Print summary: `Uploaded N cards (X new, Y updated, Z failed)`.
 
 ### `nextword mochi preview <word>`
 
