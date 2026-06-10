@@ -62,6 +62,7 @@ class WordRow(ListItem):
         level: str,
         sublevel: str,
         checked: bool = False,
+        loaded: bool = False,
     ) -> None:
         super().__init__()
         self.word = word
@@ -71,6 +72,7 @@ class WordRow(ListItem):
         self.level = level
         self.sublevel = sublevel
         self.checked = checked
+        self.loaded = loaded
 
     def compose(self) -> ComposeResult:
         yield Static(self._text(), id="row-label")
@@ -79,10 +81,13 @@ class WordRow(ListItem):
         mark = "x" if self.checked else " "
         first_line = self.translation.split("\n")[0]
         sub_short = _SUBLEVEL_SHORT.get(self.sublevel, self.sublevel[:6])
-        return (
+        line = (
             f"\\[{mark}] {self.level:<3} {sub_short:<6}"
             f"  {self.global_num:<5} / {self.sublevel_num:>3} {self.word:<28} {first_line}"
         )
+        if self.loaded:
+            return f"[green]{line}[/green]"
+        return line
 
     def toggle(self) -> None:
         self.checked = not self.checked
