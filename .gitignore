@@ -1,3 +1,19 @@
+# Secrets
+.env
+.mcp.json
+
+# Data files (runtime state / exports)
 data/cards.json
 data/cards_batch.json
 data/mochi_state.json
+data/export.csv
+data/position.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+
+# macOS
+.DS_Store
