@@ -1,6 +1,6 @@
 import sqlite3
 import pytest
-from nextword.db import get_words
+from nextword.db import get_all_words, get_words
 
 
 @pytest.fixture
@@ -38,8 +38,14 @@ def db_path(tmp_path):
 def test_get_words_returns_matching_level_and_sublevel(db_path):
     result = get_words("A2", "beginner", db_path=db_path)
     assert len(result) == 2
-    assert result[0] == {"word": "allow", "translation": "разрешать"}
-    assert result[1] == {"word": "appear", "translation": "появляться"}
+    assert result[0]["word"] == "allow"
+    assert result[0]["translation"] == "разрешать"
+    assert result[0]["level"] == "A2"
+    assert result[0]["sublevel"] == "beginner"
+    assert "id" in result[0]
+    assert result[1]["word"] == "appear"
+    assert result[1]["translation"] == "появляться"
+    assert "id" in result[1]
 
 
 def test_get_words_filters_out_other_levels(db_path):
@@ -51,3 +57,11 @@ def test_get_words_filters_out_other_levels(db_path):
 def test_get_words_returns_empty_for_no_match(db_path):
     result = get_words("C1", "advance", db_path=db_path)
     assert result == []
+
+
+def test_get_all_words_returns_all_sorted_by_id(db_path):
+    result = get_all_words(db_path=db_path)
+    assert len(result) == 3
+    assert all("id" in r and "level" in r and "sublevel" in r for r in result)
+    ids = [r["id"] for r in result]
+    assert ids == sorted(ids)
