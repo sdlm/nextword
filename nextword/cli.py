@@ -26,6 +26,32 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _run_pipeline() -> None:
+    from nextword.cards import pipeline
+    from nextword.mochi import upload as mochi_upload
+
+    try:
+        cards, _failed = pipeline.generate()
+    except Exception as exc:  # noqa: BLE001 — top-level CLI guard, print instead of traceback
+        print(f"Card generation failed: {exc}")
+        return
+    if not cards:
+        print("No cards generated; skipping Mochi upload.")
+        return
+    try:
+        mochi_upload.upload()
+    except Exception as exc:  # noqa: BLE001 — top-level CLI guard, print instead of traceback
+        print(f"Mochi upload failed: {exc}")
+
+
+def _run_tui_and_pipeline() -> None:
+    from nextword.app import WordListApp
+
+    result = WordListApp().run()
+    if result == "run_pipeline":
+        _run_pipeline()
+
+
 def main() -> None:
     args = build_parser().parse_args()
 
@@ -51,9 +77,7 @@ def main() -> None:
             build_parser().parse_args(["mochi", "--help"])
         return
 
-    from nextword.app import WordListApp
-
-    WordListApp().run()
+    _run_tui_and_pipeline()
 
 
 if __name__ == "__main__":
