@@ -1,4 +1,10 @@
-MODEL = "claude-sonnet-4-6"
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
 MAX_TOKENS = 2048
 
 # Max concurrent requests for the default parallel path (ThreadPoolExecutor),
