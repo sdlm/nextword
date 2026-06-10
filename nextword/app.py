@@ -4,7 +4,7 @@ from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import Footer, Header, Label, ListItem, ListView, Static
 
 from nextword.db import get_all_words, get_words
@@ -147,6 +147,41 @@ class SublevelScreen(Screen):
         self.app.push_screen(WordListScreen(words, level=self._level, sublevel=sublevel))
 
 
+class ConfirmScreen(ModalScreen[bool]):
+    DEFAULT_CSS = """
+    ConfirmScreen {
+        align: center middle;
+    }
+    ConfirmScreen Static {
+        width: auto;
+        padding: 1 2;
+        border: round $primary;
+    }
+    """
+
+    BINDINGS = [
+        Binding("enter", "confirm", "Yes"),
+        Binding("escape", "cancel", "No"),
+    ]
+
+    def __init__(self, count: int) -> None:
+        super().__init__()
+        self._count = count
+
+    def compose(self) -> ComposeResult:
+        noun = "card" if self._count == 1 else "cards"
+        yield Static(
+            f"Generate {self._count} {noun} and upload to Mochi?\n"
+            "Enter — yes,   Esc — cancel"
+        )
+
+    def action_confirm(self) -> None:
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
 class WordListScreen(Screen):
     BINDINGS = [
         Binding("s", "save", "Save"),
@@ -278,8 +313,12 @@ class WordListScreen(Screen):
         if not self._checked_ids:
             self.notify("No words selected.", severity="warning")
             return
-        checked_set = self._checked_ids
-        selected = [w["word"] for w in self._all_words if w["id"] in checked_set]
+        self.app.push_screen(ConfirmScreen(len(self._checked_ids)), self._on_save_confirm)
+
+    def _on_save_confirm(self, run_pipeline: bool) -> None:
+        if not run_pipeline:
+            return
+        selected = [w["word"] for w in self._all_words if w["id"] in self._checked_ids]
         out = Path(__file__).resolve().parent.parent / "data" / "export.csv"
         out.parent.mkdir(parents=True, exist_ok=True)
         with out.open("w", newline="", encoding="utf-8") as f:
@@ -288,7 +327,10 @@ class WordListScreen(Screen):
             for word in selected:
                 writer.writerow([word])
         _save_position(self._current_word_id())
-        self.app.exit(message=f"Saved {len(selected)} words to {out}")
+        self.app.exit(
+            result="run_pipeline",
+            message=f"Saved {len(selected)} words to {out}",
+        )
 
     def _refresh_title(self) -> None:
         self.title = (
