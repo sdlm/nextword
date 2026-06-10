@@ -23,6 +23,7 @@ _SETTINGS_PATH = Path.home() / ".config" / "nextword" / "settings.json"
 _DEFAULT_THEME = "textual-dark"
 
 _POSITION_PATH = Path(__file__).resolve().parent.parent / "data" / "position.json"
+_MOCHI_STATE_PATH = Path(__file__).resolve().parent.parent / "data" / "mochi_state.json"
 
 PAGE_SIZE = 300
 
@@ -33,6 +34,14 @@ def _load_position() -> int:
         return int(data.get("word_id", 1))
     except (FileNotFoundError, json.JSONDecodeError, ValueError):
         return 1
+
+
+def _load_mochi_words(path: Path = _MOCHI_STATE_PATH) -> set[str]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return set(data.keys())
+    except (FileNotFoundError, json.JSONDecodeError, AttributeError):
+        return set()
 
 
 def _save_position(word_id: int) -> None:
