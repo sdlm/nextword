@@ -177,6 +177,7 @@ class WordListScreen(Screen):
         self._page = initial_page
         self._initial_idx = initial_idx
         self._checked_ids: set[int] = set()
+        self._loaded_words = _load_mochi_words()
         self._highlighted: WordRow | None = None
 
     @property
@@ -200,6 +201,7 @@ class WordListScreen(Screen):
                     level=w["level"],
                     sublevel=w["sublevel"],
                     checked=w["id"] in self._checked_ids,
+                    loaded=w["word"] in self._loaded_words,
                 )
                 for w in self._page_words
             ]
@@ -253,6 +255,7 @@ class WordListScreen(Screen):
                     level=w["level"],
                     sublevel=w["sublevel"],
                     checked=w["id"] in self._checked_ids,
+                    loaded=w["word"] in self._loaded_words,
                 )
             )
         self._refresh_title()
