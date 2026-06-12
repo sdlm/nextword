@@ -29,10 +29,22 @@ cp .env.example .env   # fill in your API keys
 
 ## Usage
 
-```bash
-# Launch TUI — browse words, select, export to data/export.csv
-nextword
+The TUI runs the whole pipeline for you:
 
+```bash
+# Launch TUI — browse words by level, select with Space
+nextword
+```
+
+In the word list, press `s` to save your selection. A prompt asks
+*"Generate N cards and upload to Mochi?"* — press **Enter** to confirm or
+**Esc** to cancel. On confirm, nextword writes the words to `data/export.csv`,
+generates cards with Claude, and uploads them to Mochi — end to end.
+Press `q` to quit without running anything.
+
+You can also run each step on its own:
+
+```bash
 # Generate cards from data/export.csv → data/cards.json
 nextword cards generate
 
