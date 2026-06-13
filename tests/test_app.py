@@ -81,5 +81,20 @@ def test_text_renders_freq_bar_and_omits_numbers():
     )
     rendered = _render(row._text())
     assert "[##########]" in rendered  # full bar survives markup rendering
-    assert "841" not in rendered       # word number no longer shown
-    assert " / " not in rendered       # old "num / num" separator gone
+    # global_num must not appear — it used to render as "NN / NN"
+    assert "841" not in rendered
+    assert " / " not in rendered
+
+
+def test_text_renders_empty_freq_bar():
+    # freq <= FREQ_MIN (incl. the freq==0 "not found in wordfreq" case) -> all-dashes bar.
+    # escape() is a no-op on "[----------]", so this confirms it still survives rendering.
+    row = WordRow(
+        word="quotidian",
+        translation="обыденный",
+        global_num=1,
+        freq=2.0,
+        level="C1",
+        sublevel="advance",
+    )
+    assert "[----------]" in _render(row._text())
