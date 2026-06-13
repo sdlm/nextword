@@ -1,8 +1,8 @@
-import csv
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from nextword import cli
+from nextword.cards import pipeline
 from nextword.cli import build_parser
 
 
@@ -50,11 +50,7 @@ def _make_card(word: str) -> dict:
 
 
 def _write_csv(path: Path, words: list[str]) -> None:
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["word"])
-        for w in words:
-            writer.writerow([w])
+    pipeline.write_words(path, words)
 
 
 def test_run_pipeline_generates_then_uploads(tmp_path):
@@ -115,8 +111,6 @@ def test_tui_skips_pipeline_on_plain_exit():
 
 def test_run_pipeline_all_uploaded_clears_csv(tmp_path):
     """All words succeed → CSV is rewritten with header only (no words)."""
-    from nextword.cards import pipeline
-
     csv_path = tmp_path / "export.csv"
     _write_csv(csv_path, ["fence", "abrupt"])
     cards = [_make_card("fence"), _make_card("abrupt")]
@@ -132,8 +126,6 @@ def test_run_pipeline_all_uploaded_clears_csv(tmp_path):
 
 def test_run_pipeline_partial_failure_keeps_failed_words(tmp_path):
     """Partial failure → only failed words remain in CSV."""
-    from nextword.cards import pipeline
-
     csv_path = tmp_path / "export.csv"
     _write_csv(csv_path, ["fence", "abrupt", "ponder"])
     cards = [_make_card("fence"), _make_card("abrupt"), _make_card("ponder")]
@@ -164,8 +156,6 @@ def test_run_pipeline_upload_exception_does_not_touch_csv(tmp_path):
 
 def test_run_pipeline_all_failed_does_not_touch_csv(tmp_path):
     """All words fail upload (empty uploaded set) → CSV is NOT modified."""
-    from nextword.cards import pipeline
-
     csv_path = tmp_path / "export.csv"
     _write_csv(csv_path, ["fence", "abrupt"])
     cards = [_make_card("fence"), _make_card("abrupt")]
@@ -177,3 +167,16 @@ def test_run_pipeline_all_failed_does_not_touch_csv(tmp_path):
 
     remaining = pipeline.read_words(csv_path)
     assert remaining == ["fence", "abrupt"]
+
+
+def test_run_pipeline_csv_not_exists_is_noop(tmp_path):
+    """When DEFAULT_CSV does not exist, cleanup is a no-op — no exception, no file created."""
+    missing_csv = tmp_path / "nonexistent.csv"
+    cards = [_make_card("fence")]
+
+    with patch("nextword.cards.pipeline.generate", return_value=(cards, [])), \
+         patch("nextword.mochi.upload.upload", return_value=(1, 0, [])), \
+         patch("nextword.cards.pipeline.DEFAULT_CSV", missing_csv):
+        cli._run_pipeline()  # must not raise
+
+    assert not missing_csv.exists()

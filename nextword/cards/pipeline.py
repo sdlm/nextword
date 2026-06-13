@@ -37,6 +37,15 @@ def read_words(csv_path: str | Path) -> list[str]:
     return words
 
 
+def write_words(path: str | Path, words: list[str]) -> None:
+    p = Path(path)
+    with p.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["word"])
+        for word in words:
+            writer.writerow([word])
+
+
 def write_cards(cards: list[dict], out_path: str | Path) -> None:
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
