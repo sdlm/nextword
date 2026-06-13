@@ -1,6 +1,6 @@
 import json
 
-from nextword.app import WordRow, _load_mochi_words
+from nextword.app import WordRow, _freq_bar, _load_mochi_words
 
 
 def test_load_mochi_words_returns_keys(tmp_path):
@@ -39,3 +39,23 @@ def test_text_no_green_when_not_loaded():
     text = _make_row(loaded=False)._text()
     assert "[green]" not in text
     assert "reluctant" in text
+
+
+def test_freq_bar_empty_at_or_below_min():
+    assert _freq_bar(0.0) == "[----------]"
+    assert _freq_bar(1.0) == "[----------]"
+    assert _freq_bar(2.0) == "[----------]"
+
+
+def test_freq_bar_full_at_or_above_max():
+    assert _freq_bar(6.0) == "[##########]"
+    assert _freq_bar(7.5) == "[##########]"
+
+
+def test_freq_bar_partial_at_midpoint():
+    assert _freq_bar(4.0) == "[#####-----]"
+
+
+def test_freq_bar_length_is_width_plus_brackets():
+    for f in [0.0, 2.5, 3.7, 5.1, 8.0]:
+        assert len(_freq_bar(f)) == 12

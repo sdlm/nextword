@@ -52,6 +52,18 @@ def _save_position(word_id: int) -> None:
         pass
 
 
+FREQ_MIN = 2.0
+FREQ_MAX = 6.0
+FREQ_BAR_WIDTH = 10
+
+
+def _freq_bar(freq: float, width: int = FREQ_BAR_WIDTH) -> str:
+    clamped = max(FREQ_MIN, min(FREQ_MAX, freq))
+    filled = round((clamped - FREQ_MIN) / (FREQ_MAX - FREQ_MIN) * width)
+    filled = max(0, min(width, filled))
+    return "[" + "#" * filled + "-" * (width - filled) + "]"
+
+
 class WordRow(ListItem):
     def __init__(
         self,
