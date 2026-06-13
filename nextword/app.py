@@ -85,6 +85,8 @@ class WordRow(ListItem):
             f"\\[{mark}] {self.level:<3} {sub_short:<6}"
             f"  {self.global_num:<5} / {self.sublevel_num:>3} {self.word:<28} {first_line}"
         )
+        if self.checked:
+            return f"[yellow]{line}[/yellow]"
         if self.loaded:
             return f"[green]{line}[/green]"
         return line
