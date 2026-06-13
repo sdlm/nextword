@@ -1,3 +1,5 @@
+import csv
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from nextword import cli
@@ -43,9 +45,24 @@ def test_mochi_preview_parses_word():
     assert args.word == "undertake"
 
 
-def test_run_pipeline_generates_then_uploads():
-    with patch("nextword.cards.pipeline.generate", return_value=([{"word": "x"}], [])) as gen, \
-         patch("nextword.mochi.upload.upload") as up:
+def _make_card(word: str) -> dict:
+    return {"word": word, "fields": {"Word": word}}
+
+
+def _write_csv(path: Path, words: list[str]) -> None:
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["word"])
+        for w in words:
+            writer.writerow([w])
+
+
+def test_run_pipeline_generates_then_uploads(tmp_path):
+    csv_path = tmp_path / "export.csv"
+    _write_csv(csv_path, ["x"])
+    with patch("nextword.cards.pipeline.generate", return_value=([_make_card("x")], [])) as gen, \
+         patch("nextword.mochi.upload.upload", return_value=(1, 0, [])) as up, \
+         patch("nextword.cards.pipeline.DEFAULT_CSV", csv_path):
         cli._run_pipeline()
     gen.assert_called_once()
     up.assert_called_once()
@@ -89,3 +106,74 @@ def test_tui_skips_pipeline_on_plain_exit():
          patch("nextword.cli._run_pipeline") as rp:
         cli._run_tui_and_pipeline()
     rp.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# CSV cleanup after upload
+# ---------------------------------------------------------------------------
+
+
+def test_run_pipeline_all_uploaded_clears_csv(tmp_path):
+    """All words succeed → CSV is rewritten with header only (no words)."""
+    from nextword.cards import pipeline
+
+    csv_path = tmp_path / "export.csv"
+    _write_csv(csv_path, ["fence", "abrupt"])
+    cards = [_make_card("fence"), _make_card("abrupt")]
+
+    with patch("nextword.cards.pipeline.generate", return_value=(cards, [])), \
+         patch("nextword.mochi.upload.upload", return_value=(2, 0, [])), \
+         patch("nextword.cards.pipeline.DEFAULT_CSV", csv_path):
+        cli._run_pipeline()
+
+    remaining = pipeline.read_words(csv_path)
+    assert remaining == []
+
+
+def test_run_pipeline_partial_failure_keeps_failed_words(tmp_path):
+    """Partial failure → only failed words remain in CSV."""
+    from nextword.cards import pipeline
+
+    csv_path = tmp_path / "export.csv"
+    _write_csv(csv_path, ["fence", "abrupt", "ponder"])
+    cards = [_make_card("fence"), _make_card("abrupt"), _make_card("ponder")]
+
+    with patch("nextword.cards.pipeline.generate", return_value=(cards, [])), \
+         patch("nextword.mochi.upload.upload", return_value=(1, 0, ["abrupt", "ponder"])), \
+         patch("nextword.cards.pipeline.DEFAULT_CSV", csv_path):
+        cli._run_pipeline()
+
+    remaining = pipeline.read_words(csv_path)
+    assert remaining == ["abrupt", "ponder"]
+
+
+def test_run_pipeline_upload_exception_does_not_touch_csv(tmp_path):
+    """Upload raises an exception → CSV is NOT modified."""
+    csv_path = tmp_path / "export.csv"
+    _write_csv(csv_path, ["fence", "abrupt"])
+    original_content = csv_path.read_text(encoding="utf-8")
+    cards = [_make_card("fence"), _make_card("abrupt")]
+
+    with patch("nextword.cards.pipeline.generate", return_value=(cards, [])), \
+         patch("nextword.mochi.upload.upload", side_effect=RuntimeError("network error")), \
+         patch("nextword.cards.pipeline.DEFAULT_CSV", csv_path):
+        cli._run_pipeline()  # must not raise
+
+    assert csv_path.read_text(encoding="utf-8") == original_content
+
+
+def test_run_pipeline_all_failed_does_not_touch_csv(tmp_path):
+    """All words fail upload (empty uploaded set) → CSV is NOT modified."""
+    from nextword.cards import pipeline
+
+    csv_path = tmp_path / "export.csv"
+    _write_csv(csv_path, ["fence", "abrupt"])
+    cards = [_make_card("fence"), _make_card("abrupt")]
+
+    with patch("nextword.cards.pipeline.generate", return_value=(cards, [])), \
+         patch("nextword.mochi.upload.upload", return_value=(0, 0, ["fence", "abrupt"])), \
+         patch("nextword.cards.pipeline.DEFAULT_CSV", csv_path):
+        cli._run_pipeline()
+
+    remaining = pipeline.read_words(csv_path)
+    assert remaining == ["fence", "abrupt"]

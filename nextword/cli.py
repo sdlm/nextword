@@ -1,5 +1,6 @@
 # nextword/cli.py
 import argparse
+import csv
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,7 +40,15 @@ def _run_pipeline() -> None:
         print("No cards generated; skipping Mochi upload.")
         return
     try:
-        mochi_upload.upload()
+        _new_count, _updated_count, failed_words = mochi_upload.upload()
+        uploaded = {card["fields"]["Word"] for card in cards} - set(failed_words)
+        if uploaded and pipeline.DEFAULT_CSV.exists():
+            remaining = [w for w in pipeline.read_words(pipeline.DEFAULT_CSV) if w not in uploaded]
+            with open(pipeline.DEFAULT_CSV, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["word"])
+                for word in remaining:
+                    writer.writerow([word])
     except Exception as exc:  # noqa: BLE001 — top-level CLI guard, print instead of traceback
         print(f"Mochi upload failed: {exc}")
 
