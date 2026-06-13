@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -53,11 +54,24 @@ def _write_csv(path: Path, words: list[str]) -> None:
     pipeline.write_words(path, words)
 
 
+def _write_cards_json(path: Path, words: list[str]) -> None:
+    # _do_upload() reads DEFAULT_CARDS (cards.json) to learn which words were
+    # uploaded, so the cleanup tests must stand up a cards.json in tmp_path
+    # rather than depend on the real data/cards.json.
+    path.write_text(
+        json.dumps([_make_card(w) for w in words], ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 def test_run_pipeline_generates_then_uploads(tmp_path):
     csv_path = tmp_path / "export.csv"
+    cards_json = tmp_path / "cards.json"
     _write_csv(csv_path, ["x"])
+    _write_cards_json(cards_json, ["x"])
     with patch("nextword.cards.pipeline.generate", return_value=([_make_card("x")], [])) as gen, \
          patch("nextword.mochi.upload.upload", return_value=(1, 0, [])) as up, \
+         patch("nextword.mochi.upload.DEFAULT_CARDS", cards_json), \
          patch("nextword.cards.pipeline.DEFAULT_CSV", csv_path):
         cli._run_pipeline()
     gen.assert_called_once()
@@ -112,11 +126,14 @@ def test_tui_skips_pipeline_on_plain_exit():
 def test_run_pipeline_all_uploaded_clears_csv(tmp_path):
     """All words succeed → CSV is rewritten with header only (no words)."""
     csv_path = tmp_path / "export.csv"
+    cards_json = tmp_path / "cards.json"
     _write_csv(csv_path, ["fence", "abrupt"])
+    _write_cards_json(cards_json, ["fence", "abrupt"])
     cards = [_make_card("fence"), _make_card("abrupt")]
 
     with patch("nextword.cards.pipeline.generate", return_value=(cards, [])), \
          patch("nextword.mochi.upload.upload", return_value=(2, 0, [])), \
+         patch("nextword.mochi.upload.DEFAULT_CARDS", cards_json), \
          patch("nextword.cards.pipeline.DEFAULT_CSV", csv_path):
         cli._run_pipeline()
 
@@ -127,11 +144,14 @@ def test_run_pipeline_all_uploaded_clears_csv(tmp_path):
 def test_run_pipeline_partial_failure_keeps_failed_words(tmp_path):
     """Partial failure → only failed words remain in CSV."""
     csv_path = tmp_path / "export.csv"
+    cards_json = tmp_path / "cards.json"
     _write_csv(csv_path, ["fence", "abrupt", "ponder"])
+    _write_cards_json(cards_json, ["fence", "abrupt", "ponder"])
     cards = [_make_card("fence"), _make_card("abrupt"), _make_card("ponder")]
 
     with patch("nextword.cards.pipeline.generate", return_value=(cards, [])), \
          patch("nextword.mochi.upload.upload", return_value=(1, 0, ["abrupt", "ponder"])), \
+         patch("nextword.mochi.upload.DEFAULT_CARDS", cards_json), \
          patch("nextword.cards.pipeline.DEFAULT_CSV", csv_path):
         cli._run_pipeline()
 
@@ -157,11 +177,14 @@ def test_run_pipeline_upload_exception_does_not_touch_csv(tmp_path):
 def test_run_pipeline_all_failed_does_not_touch_csv(tmp_path):
     """All words fail upload (empty uploaded set) → CSV is NOT modified."""
     csv_path = tmp_path / "export.csv"
+    cards_json = tmp_path / "cards.json"
     _write_csv(csv_path, ["fence", "abrupt"])
+    _write_cards_json(cards_json, ["fence", "abrupt"])
     cards = [_make_card("fence"), _make_card("abrupt")]
 
     with patch("nextword.cards.pipeline.generate", return_value=(cards, [])), \
          patch("nextword.mochi.upload.upload", return_value=(0, 0, ["fence", "abrupt"])), \
+         patch("nextword.mochi.upload.DEFAULT_CARDS", cards_json), \
          patch("nextword.cards.pipeline.DEFAULT_CSV", csv_path):
         cli._run_pipeline()
 
@@ -172,10 +195,13 @@ def test_run_pipeline_all_failed_does_not_touch_csv(tmp_path):
 def test_run_pipeline_csv_not_exists_is_noop(tmp_path):
     """When DEFAULT_CSV does not exist, cleanup is a no-op — no exception, no file created."""
     missing_csv = tmp_path / "nonexistent.csv"
+    cards_json = tmp_path / "cards.json"
+    _write_cards_json(cards_json, ["fence"])
     cards = [_make_card("fence")]
 
     with patch("nextword.cards.pipeline.generate", return_value=(cards, [])), \
          patch("nextword.mochi.upload.upload", return_value=(1, 0, [])), \
+         patch("nextword.mochi.upload.DEFAULT_CARDS", cards_json), \
          patch("nextword.cards.pipeline.DEFAULT_CSV", missing_csv):
         cli._run_pipeline()  # must not raise
 
