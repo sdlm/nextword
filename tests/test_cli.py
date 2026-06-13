@@ -206,3 +206,19 @@ def test_run_pipeline_csv_not_exists_is_noop(tmp_path):
         cli._run_pipeline()  # must not raise
 
     assert not missing_csv.exists()
+
+
+def test_do_upload_standalone_cleans_csv(tmp_path):
+    """Standalone `nextword mochi upload`: _do_upload() (called directly, no
+    pipeline) removes successfully uploaded words from the CSV."""
+    csv_path = tmp_path / "export.csv"
+    cards_json = tmp_path / "cards.json"
+    _write_csv(csv_path, ["fence", "abrupt"])
+    _write_cards_json(cards_json, ["fence", "abrupt"])
+
+    with patch("nextword.mochi.upload.upload", return_value=(1, 0, ["abrupt"])), \
+         patch("nextword.mochi.upload.DEFAULT_CARDS", cards_json), \
+         patch("nextword.cards.pipeline.DEFAULT_CSV", csv_path):
+        cli._do_upload()
+
+    assert pipeline.read_words(csv_path) == ["abrupt"]
