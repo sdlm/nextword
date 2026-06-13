@@ -2,6 +2,8 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
+from wordfreq import zipf_frequency
+
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "words.db"
 
 
@@ -19,9 +21,9 @@ def get_words(level: str, sublevel: str, db_path: str | Path = DB_PATH) -> list[
             "translation": row["translation"],
             "level": level,
             "sublevel": sublevel,
-            "sublevel_num": i + 1,
+            "freq": zipf_frequency(row["word"].strip().lower(), "en"),
         }
-        for i, row in enumerate(rows)
+        for row in rows
     ]
 
 
@@ -31,17 +33,14 @@ def get_all_words(db_path: str | Path = DB_PATH) -> list[dict]:
         rows = conn.execute(
             "SELECT id, word, translation, level, sublevel FROM words ORDER BY id",
         ).fetchall()
-    sublevel_counters: dict[tuple[str, str], int] = {}
-    result = []
-    for row in rows:
-        key = (row["level"], row["sublevel"])
-        sublevel_counters[key] = sublevel_counters.get(key, 0) + 1
-        result.append({
+    return [
+        {
             "id": row["id"],
             "word": row["word"],
             "translation": row["translation"],
             "level": row["level"],
             "sublevel": row["sublevel"],
-            "sublevel_num": sublevel_counters[key],
-        })
-    return result
+            "freq": zipf_frequency(row["word"].strip().lower(), "en"),
+        }
+        for row in rows
+    ]

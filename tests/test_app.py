@@ -1,4 +1,7 @@
+import io
 import json
+
+from rich.console import Console
 
 from nextword.app import WordRow, _freq_bar, _load_mochi_words
 
@@ -21,7 +24,7 @@ def _make_row(loaded: bool) -> WordRow:
         word="reluctant",
         translation="неохотный — 80%",
         global_num=841,
-        sublevel_num=14,
+        freq=3.5,
         level="B1",
         sublevel="intermediate",
         loaded=loaded,
@@ -59,3 +62,24 @@ def test_freq_bar_partial_at_midpoint():
 def test_freq_bar_length_is_width_plus_brackets():
     for f in [0.0, 2.5, 3.7, 5.1, 8.0]:
         assert len(_freq_bar(f)) == 12
+
+
+def _render(text: str) -> str:
+    buf = io.StringIO()
+    Console(file=buf, width=200, force_terminal=False).print(text)
+    return buf.getvalue()
+
+
+def test_text_renders_freq_bar_and_omits_numbers():
+    row = WordRow(
+        word="make",
+        translation="делать",
+        global_num=841,
+        freq=6.08,
+        level="A2",
+        sublevel="beginner",
+    )
+    rendered = _render(row._text())
+    assert "[##########]" in rendered  # full bar survives markup rendering
+    assert "841" not in rendered       # word number no longer shown
+    assert " / " not in rendered       # old "num / num" separator gone

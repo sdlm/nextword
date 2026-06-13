@@ -2,6 +2,7 @@ import csv
 import json
 from pathlib import Path
 
+from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.screen import ModalScreen, Screen
@@ -70,7 +71,7 @@ class WordRow(ListItem):
         word: str,
         translation: str,
         global_num: int,
-        sublevel_num: int,
+        freq: float,
         level: str,
         sublevel: str,
         checked: bool = False,
@@ -80,7 +81,7 @@ class WordRow(ListItem):
         self.word = word
         self.translation = translation
         self.global_num = global_num
-        self.sublevel_num = sublevel_num
+        self.freq = freq
         self.level = level
         self.sublevel = sublevel
         self.checked = checked
@@ -95,7 +96,7 @@ class WordRow(ListItem):
         sub_short = _SUBLEVEL_SHORT.get(self.sublevel, self.sublevel[:6])
         line = (
             f"\\[{mark}] {self.level:<3} {sub_short:<6}"
-            f"  {self.global_num:<5} / {self.sublevel_num:>3} {self.word:<28} {first_line}"
+            f"  {escape(_freq_bar(self.freq))}  {self.word:<28} {first_line}"
         )
         if self.checked:
             return f"[yellow]{line}[/yellow]"
@@ -246,7 +247,7 @@ class WordListScreen(Screen):
                     w["word"],
                     w["translation"],
                     global_num=w["id"],
-                    sublevel_num=w["sublevel_num"],
+                    freq=w["freq"],
                     level=w["level"],
                     sublevel=w["sublevel"],
                     checked=w["id"] in self._checked_ids,
@@ -300,7 +301,7 @@ class WordListScreen(Screen):
                     w["word"],
                     w["translation"],
                     global_num=w["id"],
-                    sublevel_num=w["sublevel_num"],
+                    freq=w["freq"],
                     level=w["level"],
                     sublevel=w["sublevel"],
                     checked=w["id"] in self._checked_ids,

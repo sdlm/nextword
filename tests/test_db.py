@@ -65,3 +65,17 @@ def test_get_all_words_returns_all_sorted_by_id(db_path):
     assert all("id" in r and "level" in r and "sublevel" in r for r in result)
     ids = [r["id"] for r in result]
     assert ids == sorted(ids)
+
+
+def test_get_words_includes_freq_and_drops_sublevel_num(db_path):
+    result = get_words("A2", "beginner", db_path=db_path)
+    assert all(isinstance(r["freq"], float) for r in result)
+    allow = next(r for r in result if r["word"] == "allow")
+    assert allow["freq"] > 0  # common word -> positive zipf
+    assert "sublevel_num" not in result[0]
+
+
+def test_get_all_words_includes_freq_and_drops_sublevel_num(db_path):
+    result = get_all_words(db_path=db_path)
+    assert all(isinstance(r["freq"], float) for r in result)
+    assert "sublevel_num" not in result[0]
