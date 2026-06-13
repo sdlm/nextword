@@ -141,7 +141,7 @@ def upload(
                 state[word] = result["id"]
                 save_state(state_path, state)
                 new_count += 1
-                print(f"  created {word}")
+                print(f"  uploaded {word}")
         except HTTPError:
             if not is_update:
                 state.pop(word, None)

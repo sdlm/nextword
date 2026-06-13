@@ -154,7 +154,10 @@ def _generate_parallel(client, csv_path, max_workers) -> tuple[list[dict], list[
     if not words:
         raise RuntimeError(f"No words found in {csv_path}")
     print(f"Generating {len(words)} cards in parallel (max {max_workers} at a time)")
-    results = generate_many(client, build_requests(words), max_workers=max_workers)
+    def on_done(i, result):
+        print(f"  generated {words[i]}" if result[0] == "ok" else f"  FAILED {words[i]}")
+
+    results = generate_many(client, build_requests(words), max_workers=max_workers, on_done=on_done)
     cards: list[dict] = []
     failed: list[str] = []
     for word, (status, payload) in zip(words, results):

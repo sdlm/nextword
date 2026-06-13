@@ -1,6 +1,6 @@
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -36,7 +36,7 @@ def generate_one(client, request: dict):
     return client.messages.create(**request["params"])
 
 
-def generate_many(client, requests: list[dict], *, max_workers: int = CONCURRENCY):
+def generate_many(client, requests: list[dict], *, max_workers: int = CONCURRENCY, on_done=None):
     # Run all requests in parallel; return ("ok", message) or ("error", exc)
     # per request, in the same order as the input list.
     results: list = [None] * len(requests)
@@ -45,9 +45,12 @@ def generate_many(client, requests: list[dict], *, max_workers: int = CONCURRENC
             executor.submit(generate_one, client, req): i
             for i, req in enumerate(requests)
         }
-        for future, i in futures.items():
+        for future in as_completed(futures):
+            i = futures[future]
             try:
                 results[i] = ("ok", future.result())
             except Exception as exc:  # noqa: BLE001 - report per-request, keep others
                 results[i] = ("error", exc)
+            if on_done is not None:
+                on_done(i, results[i])
     return results

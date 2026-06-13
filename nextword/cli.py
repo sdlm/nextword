@@ -26,9 +26,27 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run_pipeline() -> None:
+def _do_upload() -> None:
+    import json
     from nextword.cards import pipeline
     from nextword.mochi import upload as mochi_upload
+
+    try:
+        _new_count, _updated_count, failed_words = mochi_upload.upload()
+    except Exception as exc:  # noqa: BLE001 — top-level CLI guard, print instead of traceback
+        print(f"Mochi upload failed: {exc}")
+        return
+    if not mochi_upload.DEFAULT_CARDS.exists():
+        return
+    cards = json.loads(mochi_upload.DEFAULT_CARDS.read_text(encoding="utf-8"))
+    uploaded = {card["fields"]["Word"] for card in cards} - set(failed_words)
+    if uploaded and pipeline.DEFAULT_CSV.exists():
+        remaining = [w for w in pipeline.read_words(pipeline.DEFAULT_CSV) if w not in uploaded]
+        pipeline.write_words(pipeline.DEFAULT_CSV, remaining)
+
+
+def _run_pipeline() -> None:
+    from nextword.cards import pipeline
 
     try:
         cards, _failed = pipeline.generate()
@@ -38,16 +56,7 @@ def _run_pipeline() -> None:
     if not cards:
         print("No cards generated; skipping Mochi upload.")
         return
-    try:
-        _new_count, _updated_count, failed_words = mochi_upload.upload()
-    except Exception as exc:  # noqa: BLE001 — top-level CLI guard, print instead of traceback
-        print(f"Mochi upload failed: {exc}")
-        return
-    # Upload succeeded — safe to rewrite CSV
-    uploaded = {card["fields"]["Word"] for card in cards} - set(failed_words)
-    if uploaded and pipeline.DEFAULT_CSV.exists():
-        remaining = [w for w in pipeline.read_words(pipeline.DEFAULT_CSV) if w not in uploaded]
-        pipeline.write_words(pipeline.DEFAULT_CSV, remaining)
+    _do_upload()
 
 
 def _run_tui_and_pipeline() -> None:
@@ -76,7 +85,7 @@ def main() -> None:
         from nextword.mochi import upload as mochi_upload
 
         if args.mochi_command == "upload":
-            mochi_upload.upload()
+            _do_upload()
         elif args.mochi_command == "preview":
             mochi_upload.preview(args.word)
         else:
